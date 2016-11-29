@@ -31,7 +31,7 @@ namespace MonoDevelopEditorConfigAddin
 		void UpdatePolicy(Solution solution, string mimeType, string extension)
 		{
 			var configuration = _parser.Parse(
-				Path.Combine(solution.BaseDirectory, "Test" + extension)).First();
+				Path.Combine(solution.BaseDirectory, "FileDoesntHaveToExist" + extension)).First();
 			if (configuration == null || configuration.Properties.Count == 0)
 				return;
 
