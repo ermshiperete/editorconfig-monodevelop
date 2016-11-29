@@ -11,5 +11,3 @@ using System.Runtime.CompilerServices;
 [assembly: AssemblyCopyright("(C) 2016 Eberhard Beilharz")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
-[assembly: AssemblyVersion("0.1.*")]
-
