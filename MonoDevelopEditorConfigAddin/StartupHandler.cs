@@ -43,10 +43,10 @@ namespace MonoDevelopEditorConfigAddin
             var indentWidth = indentWidthVal ?? oldPolicy.IndentWidth;
             var tabWidth = configuration.TabWidth ?? oldPolicy.TabWidth;
             var removeTrailingWhitespace = configuration.TrimTrailingWhitespace ?? oldPolicy.RemoveTrailingWhitespace;
-            var tabsToSpaces = configuration.IndentStyle.HasValue ? (configuration.IndentStyle == EditorConfig.Core.IndentStyle.Space) : oldPolicy.TabsToSpaces;
+            var tabsToSpaces = configuration.IndentStyle.HasValue ? (configuration.IndentStyle == IndentStyle.Space) : oldPolicy.TabsToSpaces;
 
             var newPolicy = new TextStylePolicy(fileWidth, tabWidth, indentWidth, tabsToSpaces, oldPolicy.NoTabsAfterNonTabs, removeTrailingWhitespace, eolMarker);
-            if (newPolicy != oldPolicy) solution.Policies.Set<TextStylePolicy>(newPolicy, mimeType);
+            if (newPolicy != oldPolicy) solution.Policies.Set(newPolicy, mimeType);
         }
 
         private static EolMarker? TranslateEndOfLine(EndOfLine? eol)
