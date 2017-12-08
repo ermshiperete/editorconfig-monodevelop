@@ -12,7 +12,7 @@ namespace MonoDevelopEditorConfigAddin
 {
     public class StartupHandler : CommandHandler
     {
-        private EditorConfigParser _parser = new EditorConfigParser();
+        private EditorConfigParser _parser;
 
         protected override void Run()
         {
