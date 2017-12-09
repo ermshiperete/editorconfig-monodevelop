@@ -1,90 +1,101 @@
-﻿// Copyright (c) 2016 SIL International
-// This software is licensed under the MIT License (http://opensource.org/licenses/MIT)
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using EditorConfig.Core;
 using MonoDevelop.Components.Commands;
 using MonoDevelop.Ide;
+using MonoDevelop.Ide.Gui;
 using MonoDevelop.Ide.Gui.Content;
 using MonoDevelop.Projects;
+using MonoDevelop.Core.Logging;
 
 namespace MonoDevelopEditorConfigAddin
 {
-	public class StartupHandler: CommandHandler
+	public class StartupHandler : CommandHandler
 	{
 		private EditorConfigParser _parser;
 
 		protected override void Run()
 		{
 			base.Run();
-			IdeApp.Workspace.SolutionLoaded += OnSolutionLoaded;
-		}
 
-		private void OnSolutionLoaded (object sender, SolutionEventArgs e)
-		{
 			_parser = new EditorConfigParser();
-			UpdatePolicy(e.Solution, "text/x-csharp", ".cs");
-			UpdatePolicy(e.Solution, "text/plain", "");
+			IdeApp.Workbench.DocumentOpened += OnDocumentOpened;
 		}
 
-		void UpdatePolicy(Solution solution, string mimeType, string extension)
+		private void OnDocumentOpened(object sender, DocumentEventArgs e)
 		{
-			var configuration = _parser.Parse(
-				Path.Combine(solution.BaseDirectory, "FileDoesntHaveToExist" + extension)).First();
+			ILogger logger = new ConsoleLogger();
+
+			Solution solution = e.Document.Project.ParentSolution;
+			string path = Path.Combine(e.Document.Project.BaseDirectory, e.Document.PathRelativeToProject);
+			logger.Log(LogLevel.Info, $"Getting editorconfig data for path: {path}");
+
+			var configuration = _parser.Parse(path).First();
+
 			if (configuration == null || configuration.Properties.Count == 0)
-				return;
-
-			var mimeTypes = DesktopService.GetMimeTypeInheritanceChain(mimeType);
-			var oldPolicy = solution.Policies.Get<TextStylePolicy>(mimeTypes);
-			var fileWidth = configuration.MaxLineLength.HasValue ?
-				configuration.MaxLineLength.Value : oldPolicy.FileWidth;
-			var eolMarkerVal = TranslateEndOfLine(configuration.EndOfLine);
-			var eolMarker = eolMarkerVal.HasValue ?
-				eolMarkerVal.Value : oldPolicy.EolMarker;
-			var indentWidthVal = GetIndentWidth(configuration);
-			var indentWidth = indentWidthVal.HasValue ?
-				indentWidthVal.Value : oldPolicy.IndentWidth;
-			var tabWidth = configuration.TabWidth.HasValue ?
-				configuration.TabWidth.Value : oldPolicy.TabWidth;
-			var tabsToSpaces = configuration.IndentStyle.HasValue ?
-				(configuration.IndentStyle.Value == IndentStyle.Space) : oldPolicy.TabsToSpaces;
-			var removeTrailingWhitespace = configuration.TrimTrailingWhitespace.HasValue ?
-				configuration.TrimTrailingWhitespace.Value : oldPolicy.RemoveTrailingWhitespace;
-			var newPolicy = new TextStylePolicy(fileWidth, tabWidth, indentWidth, tabsToSpaces,
-				oldPolicy.NoTabsAfterNonTabs, removeTrailingWhitespace, eolMarker);
-			if (newPolicy != oldPolicy)
-				solution.Policies.Set<TextStylePolicy>(newPolicy, mimeType);
-		}
-
-		private EolMarker? TranslateEndOfLine(EndOfLine? endOfLine)
-		{
-			if (!endOfLine.HasValue)
-				return null;
-
-			switch (endOfLine.Value)
 			{
-				case EndOfLine.CR:
-					return EolMarker.Mac;
-				case EndOfLine.CRLF:
-					return EolMarker.Windows;
-				case EndOfLine.LF:
-					return EolMarker.Unix;
+				logger.Log(LogLevel.Warn, "Found no editorconfig data, returning");
+				return;
 			}
-			return EolMarker.Native;
+
+			Uri uri = new Uri(path);
+			var mimeType = DesktopService.GetMimeTypeForUri(uri.AbsoluteUri);
+
+			var oldPolicy = solution.Policies.Get<TextStylePolicy>();
+			var fileWidth = configuration.MaxLineLength ?? oldPolicy.FileWidth;
+			var eolMarkerVal = TranslateEndOfLine(configuration.EndOfLine);
+			var eolMarker = eolMarkerVal ?? oldPolicy.EolMarker;
+			var indentWidthVal = GetIndentWidth(configuration);
+			var indentWidth = indentWidthVal ?? oldPolicy.IndentWidth;
+			var tabWidth = configuration.TabWidth ?? oldPolicy.TabWidth;
+			var removeTrailingWhitespace = configuration.TrimTrailingWhitespace ?? oldPolicy.RemoveTrailingWhitespace;
+			var tabsToSpaces = configuration.IndentStyle.HasValue ? (configuration.IndentStyle == IndentStyle.Space) : oldPolicy.TabsToSpaces;
+
+			var newPolicy = new TextStylePolicy(fileWidth, indentWidth, indentWidth, tabsToSpaces, oldPolicy.NoTabsAfterNonTabs, removeTrailingWhitespace, eolMarker);
+			if (newPolicy != oldPolicy)
+			{
+				logger.Log(LogLevel.Info, $"Setting editorconfig policy: {DescribePolicy(newPolicy)}");
+				solution.Policies.Set(newPolicy, mimeType);
+			}
 		}
 
-		private int? GetIndentWidth(FileConfiguration configuration)
+		private static EolMarker? TranslateEndOfLine(EndOfLine? eol)
 		{
-			if (configuration.IndentSize == null)
-				return null;
+			if (!eol.HasValue) return null;
 
-			if (configuration.IndentSize.UseTabWidth)
-				return configuration.TabWidth;
-
-			return configuration.IndentSize.NumberOfColumns;
+			switch (eol.Value)
+			{
+				case EndOfLine.CR: return EolMarker.Mac;
+				case EndOfLine.LF: return EolMarker.Unix;
+				case EndOfLine.CRLF: return EolMarker.Windows;
+				default: return EolMarker.Native;
+			}
 		}
 
+		private static int? GetIndentWidth(FileConfiguration config)
+		{
+			if (config.IndentSize == null) return null;
+
+			if (config.IndentSize.UseTabWidth)
+				return config.TabWidth;
+
+			return config.IndentSize.NumberOfColumns;
+		}
+
+		private static string DescribePolicy(TextStylePolicy policy)
+		{
+			StringBuilder builder = new StringBuilder();
+			builder.Append("{ ");
+
+			builder.AppendFormat("tabWidth={0} ", policy.TabWidth);
+			builder.AppendFormat("indentWidth={0} ", policy.IndentWidth);
+			builder.AppendFormat("tabsToSpaces={0} ", policy.TabsToSpaces);
+			builder.AppendFormat("trimWhitespace={0} ", policy.RemoveTrailingWhitespace);
+
+			builder.Append("}");
+			return builder.ToString();
+		}
 	}
 }
-
