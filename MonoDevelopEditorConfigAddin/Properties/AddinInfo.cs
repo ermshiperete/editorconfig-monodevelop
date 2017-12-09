@@ -8,7 +8,7 @@ using Mono.Addins.Description;
 	Version = "0.1"
 )]
 
-[assembly:AddinName("EditorConfigAddin")]
+[assembly:AddinName("EditorConfig Support")]
 [assembly:AddinCategory("IDE extensions")]
 [assembly:AddinDescription(@"EditorConfig Addin for MonoDevelop
 
